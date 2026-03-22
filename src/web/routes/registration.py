@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import threading
 import uuid
 import random
 from datetime import datetime
@@ -520,9 +521,20 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                                         continue
                                     # 解析服务配置
                                     _proxy_ids = _json.loads(_svc.proxy_ids) if _svc.proxy_ids else []
+                                    _effective_proxies = [pid for pid in _proxy_ids if pid]
                                     _group_ids = _json.loads(_svc.group_ids) if _svc.group_ids else []
-                                    _proxy_id = _proxy_ids[0] if _proxy_ids else 0
-                                    log_callback(f"[FluxCode] 正在把账号发往服务站: {_svc.name}")
+                                    # 轮询分配代理 ID（批量任务共享计数器）
+                                    if _effective_proxies and batch_id and batch_id in batch_tasks:
+                                        _batch = batch_tasks[batch_id]
+                                        with _batch["fluxcode_proxy_lock"]:
+                                            _idx = _batch["fluxcode_proxy_counter"]
+                                            _batch["fluxcode_proxy_counter"] = _idx + 1
+                                        _proxy_id = _effective_proxies[_idx % len(_effective_proxies)]
+                                    elif _effective_proxies:
+                                        _proxy_id = _effective_proxies[0]
+                                    else:
+                                        _proxy_id = 0
+                                    log_callback(f"[FluxCode] 正在把账号发往服务站: {_svc.name} (proxy_id={_proxy_id})")
                                     _ok, _msg = upload_single_to_fluxcode(
                                         account=saved_account,
                                         api_url=_svc.api_url,
@@ -638,7 +650,10 @@ def _init_batch_state(batch_id: str, task_uuids: List[str]):
         "task_uuids": task_uuids,
         "current_index": 0,
         "logs": [],
-        "finished": False
+        "finished": False,
+        # FluxCode 代理 ID 轮询计数器（线程安全）
+        "fluxcode_proxy_counter": 0,
+        "fluxcode_proxy_lock": threading.Lock(),
     }
 
 
@@ -922,15 +937,15 @@ async def start_batch_registration(
     """
     启动批量注册任务
 
-    - count: 注册数量 (1-100)
+    - count: 注册数量 (1-10000)
     - email_service_type: 邮箱服务类型
     - proxy: 代理地址
     - interval_min: 最小间隔秒数
     - interval_max: 最大间隔秒数
     """
     # 验证参数
-    if request.count < 1 or request.count > 100:
-        raise HTTPException(status_code=400, detail="注册数量必须在 1-100 之间")
+    if request.count < 1 or request.count > 10000:
+        raise HTTPException(status_code=400, detail="注册数量必须在 1-10000 之间")
 
     try:
         EmailServiceType(request.email_service_type)

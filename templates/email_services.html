@@ -306,6 +306,22 @@
                             <label for="custom-imap-password">密码 / 授权码</label>
                             <input type="password" id="custom-imap-password" name="imap_password" placeholder="Gmail 需使用 App Password，QQ/163 需使用授权码">
                         </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="custom-imap-sub-address" name="imap_sub_address">
+                                支持子邮箱 (Plus Addressing)
+                            </label>
+                            <small style="color: var(--text-muted);">启用后注册时自动构造子邮箱，如 user+abc123@gmail.com，验证码仍发往原始邮箱</small>
+                        </div>
+                        <div class="form-group" id="add-imap-sub-format-group" style="display:none;">
+                            <label for="custom-imap-sub-format">子邮箱格式（可选）</label>
+                            <input type="text" id="custom-imap-sub-format" name="imap_sub_format"
+                                placeholder="{local}+{random}@{domain}" value="">
+                            <small style="color: var(--text-muted);">
+                                可用变量：{local}=用户名, {random}=随机6~8位字母数字, {domain}=域名<br>
+                                默认格式：{local}+{random}@{domain}
+                            </small>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -443,6 +459,22 @@
                             <label for="edit-imap-password">密码 / 授权码</label>
                             <input type="password" id="edit-imap-password" name="imap_password" placeholder="留空则保持原值不变">
                             <small style="color: var(--text-muted);">留空则保持原值不变</small>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="edit-imap-sub-address" name="imap_sub_address">
+                                支持子邮箱 (Plus Addressing)
+                            </label>
+                            <small style="color: var(--text-muted);">启用后注册时自动构造子邮箱，如 user+abc123@gmail.com，验证码仍发往原始邮箱</small>
+                        </div>
+                        <div class="form-group" id="edit-imap-sub-format-group" style="display:none;">
+                            <label for="edit-imap-sub-format">子邮箱格式（可选）</label>
+                            <input type="text" id="edit-imap-sub-format" name="imap_sub_format"
+                                placeholder="{local}+{random}@{domain}" value="">
+                            <small style="color: var(--text-muted);">
+                                可用变量：{local}=用户名, {random}=随机6~8位字母数字, {domain}=域名<br>
+                                默认格式：{local}+{random}@{domain}
+                            </small>
                         </div>
                     </div>
                     <div class="form-row">

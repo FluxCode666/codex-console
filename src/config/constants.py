@@ -190,6 +190,12 @@ FIRST_NAMES = [
     "Grace", "Lily", "Chloe", "Zoey", "Nora", "Aria", "Hazel", "Aurora", "Stella", "Ivy"
 ]
 
+# 常用英文姓
+LAST_NAMES = [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
+    "Davis", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Martin",
+]
+
 def generate_random_user_info() -> dict:
     """
     生成随机用户信息
@@ -197,21 +203,17 @@ def generate_random_user_info() -> dict:
     Returns:
         包含 name 和 birthdate 的字典
     """
-    # 随机选择名字
-    name = random.choice(FIRST_NAMES)
+    # 随机选择名和姓，组合为全名（与 gpt.py 保持一致）
+    first_name = random.choice(FIRST_NAMES)
+    last_name = random.choice(LAST_NAMES)
+    name = f"{first_name} {last_name}"
 
-    # 生成随机生日（18-45岁）
-    current_year = datetime.now().year
-    birth_year = random.randint(current_year - 45, current_year - 18)
+    # 生成随机生日（20-30岁），与 gpt.py 保持一致
+    # 使用固定安全范围，避免边界年份因月份差异导致实际不满 18 岁
+    birth_year = random.randint(1996, 2006)
     birth_month = random.randint(1, 12)
-    # 根据月份确定天数
-    if birth_month in [1, 3, 5, 7, 8, 10, 12]:
-        birth_day = random.randint(1, 31)
-    elif birth_month in [4, 6, 9, 11]:
-        birth_day = random.randint(1, 30)
-    else:
-        # 2月，简化处理
-        birth_day = random.randint(1, 28)
+    # 统一使用 1-28 天，避免无效日期（如 2 月 30 日）
+    birth_day = random.randint(1, 28)
 
     birthdate = f"{birth_year}-{birth_month:02d}-{birth_day:02d}"
 

@@ -160,6 +160,15 @@ function initEventListeners() {
     elements.tempmailForm.addEventListener('submit', handleSaveTempmail);
     elements.testTempmailBtn.addEventListener('click', handleTestTempmail);
 
+    // 子邮箱复选框联动（添加表单）
+    document.getElementById('custom-imap-sub-address').addEventListener('change', (e) => {
+        document.getElementById('add-imap-sub-format-group').style.display = e.target.checked ? '' : 'none';
+    });
+    // 子邮箱复选框联动（编辑表单）
+    document.getElementById('edit-imap-sub-address').addEventListener('change', (e) => {
+        document.getElementById('edit-imap-sub-format-group').style.display = e.target.checked ? '' : 'none';
+    });
+
     // 点击其他地方关闭更多菜单
     document.addEventListener('click', () => {
         document.querySelectorAll('.dropdown-menu.active').forEach(m => m.classList.remove('active'));
@@ -296,7 +305,10 @@ function getCustomServiceAddress(service) {
     if (service._subType === 'imap') {
         const host = service.config?.host || '-';
         const emailAddr = service.config?.email || '';
-        return `${escapeHtml(host)}<div style="color: var(--text-muted); margin-top: 4px;">${escapeHtml(emailAddr)}</div>`;
+        const subAddrTag = service.config?.support_sub_address
+            ? '<span class="status-badge" style="background-color:#ff9800;color:white;font-size:0.65rem;margin-left:4px;">子邮箱</span>'
+            : '';
+        return `${escapeHtml(host)}<div style="color: var(--text-muted); margin-top: 4px;">${escapeHtml(emailAddr)}${subAddrTag}</div>`;
     }
     const baseUrl = service.config?.base_url || '-';
     const domain = service.config?.default_domain || service.config?.domain;
@@ -473,8 +485,13 @@ async function handleAddCustom(e) {
             port: parseInt(formData.get('imap_port'), 10) || 993,
             use_ssl: formData.get('imap_use_ssl') !== 'false',
             email: formData.get('imap_email'),
-            password: formData.get('imap_password')
+            password: formData.get('imap_password'),
+            support_sub_address: !!formData.get('imap_sub_address'),
         };
+        const subFmt = formData.get('imap_sub_format');
+        if (subFmt && subFmt.trim()) {
+            config.sub_address_format = subFmt.trim();
+        }
     }
 
     const data = {
@@ -657,6 +674,11 @@ async function editCustomService(id, subType) {
             document.getElementById('edit-imap-email').value = service.config?.email || '';
             document.getElementById('edit-imap-password').value = '';
             document.getElementById('edit-imap-password').placeholder = service.config?.password ? '已设置，留空保持不变' : '请输入密码/授权码';
+            // 子邮箱配置回显
+            const subAddrCheckbox = document.getElementById('edit-imap-sub-address');
+            subAddrCheckbox.checked = !!service.config?.support_sub_address;
+            document.getElementById('edit-imap-sub-format').value = service.config?.sub_address_format || '';
+            document.getElementById('edit-imap-sub-format-group').style.display = subAddrCheckbox.checked ? '' : 'none';
         }
 
         elements.editCustomModal.classList.add('active');
@@ -708,10 +730,15 @@ async function handleEditCustom(e) {
             host: formData.get('imap_host'),
             port: parseInt(formData.get('imap_port'), 10) || 993,
             use_ssl: formData.get('imap_use_ssl') !== 'false',
-            email: formData.get('imap_email')
+            email: formData.get('imap_email'),
+            support_sub_address: !!formData.get('imap_sub_address'),
         };
         const pwd = formData.get('imap_password');
         if (pwd && pwd.trim()) config.password = pwd.trim();
+        const subFmt = formData.get('imap_sub_format');
+        if (subFmt && subFmt.trim()) {
+            config.sub_address_format = subFmt.trim();
+        }
     }
 
     const updateData = {

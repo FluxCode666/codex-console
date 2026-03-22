@@ -134,6 +134,7 @@ class RegistrationEngine:
         self._otp_sent_at: Optional[float] = None  # OTP 发送时间戳
         self._is_existing_account: bool = False  # 是否为已注册账号（用于自动登录）
         self._token_acquisition_requires_login: bool = False  # 新注册账号需要二次登录拿 token
+        self._device_id: Optional[str] = None  # Device ID，用于 sentinel token 构建
 
     def _log(self, message: str, level: str = "info"):
         """记录日志"""
@@ -232,6 +233,7 @@ class RegistrationEngine:
 
                 if did:
                     self._log(f"Device ID: {did}")
+                    self._device_id = did  # 保存到实例变量
                     return did
 
                 self._log(
@@ -545,13 +547,34 @@ class RegistrationEngine:
                 "username": self.email
             })
 
+            headers = {
+                "referer": "https://auth.openai.com/create-account/password",
+                "accept": "application/json",
+                "content-type": "application/json",
+            }
+
+            # 密码注册步骤也需要 sentinel token（参考 gpt.py step2_register_user）
+            if self._device_id:
+                try:
+                    sen_token = self._check_sentinel(self._device_id)
+                    if sen_token:
+                        sentinel = json.dumps({
+                            "p": "",
+                            "t": "",
+                            "c": sen_token,
+                            "id": self._device_id,
+                            "flow": "authorize_continue",
+                        })
+                        headers["openai-sentinel-token"] = sentinel
+                        self._log("密码注册请求已附加 Sentinel Token")
+                    else:
+                        self._log("未获取到 Sentinel Token，尝试不带 sentinel 提交", "warning")
+                except Exception as e:
+                    self._log(f"获取 Sentinel Token 异常: {e}，尝试不带 sentinel 提交", "warning")
+
             response = self.session.post(
                 OPENAI_API_ENDPOINTS["register"],
-                headers={
-                    "referer": "https://auth.openai.com/create-account/password",
-                    "accept": "application/json",
-                    "content-type": "application/json",
-                },
+                headers=headers,
                 data=register_body,
             )
 

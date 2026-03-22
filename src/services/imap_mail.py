@@ -5,8 +5,10 @@ IMAP 邮箱服务
 """
 
 import imaplib
-import email
+import email as email_lib
+import random as _random
 import re
+import string
 import time
 import logging
 from email.header import decode_header
@@ -42,6 +44,12 @@ class ImapMailService(BaseEmailService):
         self.password: str = str(cfg["password"])
         self.timeout: int = int(cfg.get("timeout", 30))
         self.max_retries: int = int(cfg.get("max_retries", 3))
+
+        # 子邮箱（Plus Addressing）配置
+        self.support_sub_address: bool = bool(cfg.get("support_sub_address", False))
+        self.sub_address_format: str = str(
+            cfg.get("sub_address_format", "") or "{local}+{random}@{domain}"
+        ).strip()
 
     def _connect(self) -> imaplib.IMAP4:
         """建立 IMAP 连接并登录，返回 mail 对象"""
@@ -105,12 +113,36 @@ class ImapMailService(BaseEmailService):
             return match.group(1)
         return None
 
+    def _generate_random_tag(self, min_len: int = 6, max_len: int = 8) -> str:
+        """生成随机子邮箱标签（6~8位小写字母+数字）"""
+        length = _random.randint(min_len, max_len)
+        charset = string.ascii_lowercase + string.digits
+        return ''.join(_random.choices(charset, k=length))
+
     def create_email(self, config: Dict[str, Any] = None) -> Dict[str, Any]:
-        """IMAP 模式不创建新邮箱，直接返回配置中的固定地址"""
+        """
+        IMAP 模式返回邮箱地址。
+        如果启用了子邮箱（Plus Addressing），则自动构造子邮箱地址用于注册，
+        验证码仍发往原始邮箱。
+        """
         self.update_status(True)
+        actual_email = self.email_addr
+
+        if self.support_sub_address:
+            try:
+                local, domain = self.email_addr.split("@", 1)
+                random_tag = self._generate_random_tag()
+                actual_email = self.sub_address_format.format(
+                    local=local, random=random_tag, domain=domain
+                )
+                logger.info(f"构造子邮箱地址: {actual_email} (原始: {self.email_addr})")
+            except Exception as e:
+                logger.warning(f"构造子邮箱地址失败，使用原始地址: {e}")
+                actual_email = self.email_addr
+
         return {
-            "email": self.email_addr,
-            "service_id": self.email_addr,
+            "email": actual_email,
+            "service_id": self.email_addr,   # IMAP 登录始终使用原始地址
             "id": self.email_addr,
         }
 
@@ -118,7 +150,7 @@ class ImapMailService(BaseEmailService):
         self,
         email: str,
         email_id: str = None,
-        timeout: int = 60,
+        timeout: int = 120,
         pattern: str = None,
         otp_sent_at: Optional[float] = None,
     ) -> Optional[str]:
@@ -152,7 +184,7 @@ class ImapMailService(BaseEmailService):
                             continue
 
                         raw = msg_data[0][1]
-                        msg = email.message_from_bytes(raw)
+                        msg = email_lib.message_from_bytes(raw)
 
                         # 检查发件人
                         from_addr = self._decode_str(msg.get("From", ""))

@@ -298,25 +298,18 @@ class TempMailService(BaseEmailService):
         start_time = time.time()
         seen_mail_ids: set = set()
 
-        # 优先使用用户级 JWT，回退到 admin API
-        cached = self._email_cache.get(email, {})
-        jwt = cached.get("jwt")
+        # 始终使用 admin API 按 address 查询邮件
+        # 注意：/user_api/mails 需要的是 User JWT（含 user_id + exp），
+        # 而 /admin/new_address 返回的是 Address JWT（含 address + address_id），
+        # 两者不兼容，会导致 401 或空结果。admin API 最可靠。
 
         while time.time() - start_time < timeout:
             try:
-                if jwt:
-                    response = self._make_request(
-                        "GET",
-                        "/user_api/mails",
-                        params={"limit": 20, "offset": 0},
-                        headers={"x-user-token": jwt, "Content-Type": "application/json", "Accept": "application/json"},
-                    )
-                else:
-                    response = self._make_request(
-                        "GET",
-                        "/admin/mails",
-                        params={"limit": 20, "offset": 0, "address": email},
-                    )
+                response = self._make_request(
+                    "GET",
+                    "/admin/mails",
+                    params={"limit": 20, "offset": 0, "address": email},
+                )
 
                 # /user_api/mails 和 /admin/mails 返回格式相同: {"results": [...], "total": N}
                 mails = response.get("results", [])
