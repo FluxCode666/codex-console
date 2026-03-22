@@ -280,6 +280,109 @@
                         </div>
                     </div>
                 </div>
+                <!-- FluxCode 服务管理 -->
+                <div class="card" style="margin-top: var(--spacing-lg);">
+                    <div class="card-header">
+                        <h3>⚡ FluxCode 服务</h3>
+                        <button class="btn btn-primary btn-sm" id="add-fluxcode-service-btn">+ 添加服务</button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:150px;">名称</th>
+                                        <th>API URL</th>
+                                        <th style="width:80px;">状态</th>
+                                        <th style="width:60px;text-align:center;">优先级</th>
+                                        <th style="width:220px;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fluxcode-services-table">
+                                    <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FluxCode 服务编辑模态框 -->
+            <div class="modal" id="fluxcode-service-edit-modal">
+                <div class="modal-content" style="max-width: 560px;">
+                    <div class="modal-header">
+                        <h3 id="fluxcode-service-modal-title">添加 FluxCode 服务</h3>
+                        <button class="modal-close" id="close-fluxcode-service-modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="fluxcode-service-form">
+                            <input type="hidden" id="fluxcode-service-id">
+                            <div class="form-group">
+                                <label for="fluxcode-service-name">名称 *</label>
+                                <input type="text" id="fluxcode-service-name" placeholder="例如: FluxCode 主服务" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="fluxcode-service-url">API URL *</label>
+                                <input type="text" id="fluxcode-service-url" placeholder="https://flux-code.cc" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="fluxcode-service-key">API Key</label>
+                                <input type="password" id="fluxcode-service-key" placeholder="编辑时留空则保持原值" autocomplete="new-password">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="fluxcode-service-priority">服务优先级</label>
+                                    <input type="number" id="fluxcode-service-priority" value="0" min="0">
+                                    <p class="hint">数字越小优先级越高</p>
+                                </div>
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <label style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+                                        <input type="checkbox" id="fluxcode-service-enabled" checked> 启用
+                                    </label>
+                                </div>
+                            </div>
+                            <hr style="border:none;border-top:1px solid var(--border-color);margin:12px 0;">
+                            <p style="margin:0 0 8px;font-weight:600;font-size:0.9rem;">默认上传参数</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="fluxcode-service-proxy-ids">代理 ID（多个用逗号分隔，轮询分配）</label>
+                                    <input type="text" id="fluxcode-service-proxy-ids" value="" placeholder="例: 1,2,3">
+                                </div>
+                                <div class="form-group">
+                                    <label for="fluxcode-service-concurrency">并发数</label>
+                                    <input type="number" id="fluxcode-service-concurrency" value="3" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="fluxcode-service-account-priority">账号优先级</label>
+                                    <input type="number" id="fluxcode-service-account-priority" value="50" min="0">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="fluxcode-service-rate-multiplier">速率倍率</label>
+                                    <input type="number" id="fluxcode-service-rate-multiplier" value="1" min="0" step="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <label style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+                                        <input type="checkbox" id="fluxcode-service-auto-pause" checked> 过期自动暂停
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="fluxcode-service-group-ids">分组 ID 列表</label>
+                                <input type="text" id="fluxcode-service-group-ids" placeholder="用英文逗号分隔，例如: 1,2,3" value="">
+                                <p class="hint">留空表示不指定分组</p>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">💾 保存</button>
+                                <button type="button" class="btn btn-secondary" id="test-fluxcode-service-btn">🔌 测试连接</button>
+                                <button type="button" class="btn btn-secondary" id="cancel-fluxcode-service-btn">取消</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
 
             <!-- Team Manager 服务编辑模态框 -->

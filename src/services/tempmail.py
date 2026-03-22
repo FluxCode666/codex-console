@@ -88,8 +88,12 @@ class TempmailService(BaseEmailService):
             )
 
             if response.status_code not in (200, 201):
+                try:
+                    err_body = response.text[:300]
+                except Exception:
+                    err_body = ""
                 self.update_status(False, EmailServiceError(f"请求失败，状态码: {response.status_code}"))
-                raise EmailServiceError(f"Tempmail.lol 请求失败，状态码: {response.status_code}")
+                raise EmailServiceError(f"Tempmail.lol 请求失败，状态码: {response.status_code}，响应: {err_body}")
 
             data = response.json()
             email = str(data.get("address", "")).strip()
@@ -167,6 +171,13 @@ class TempmailService(BaseEmailService):
                 )
 
                 if response.status_code != 200:
+                    # 首次出错或每隔一段时间打日志，避免刷屏
+                    if time.time() - start_time < 6 or int(time.time() - start_time) % 30 == 0:
+                        try:
+                            err_body = response.text[:200]
+                        except Exception:
+                            err_body = ""
+                        logger.warning(f"查询收件箱返回 HTTP {response.status_code}: {err_body}")
                     time.sleep(3)
                     continue
 
@@ -213,7 +224,7 @@ class TempmailService(BaseEmailService):
                         return code
 
             except Exception as e:
-                logger.debug(f"检查邮件时出错: {e}")
+                logger.warning(f"检查邮件时出错: {e}")
 
             # 等待一段时间再检查
             time.sleep(3)

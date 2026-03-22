@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc, func
 
-from .models import Account, EmailService, RegistrationTask, Setting, Proxy, CpaService, Sub2ApiService
+from .models import Account, EmailService, RegistrationTask, Setting, Proxy, CpaService, Sub2ApiService, FluxCodeService
 
 
 # ============================================================================
@@ -707,6 +707,82 @@ def update_tm_service(db: Session, service_id: int, **kwargs):
 def delete_tm_service(db: Session, service_id: int) -> bool:
     """删除 Team Manager 服务配置"""
     svc = get_tm_service_by_id(db, service_id)
+    if not svc:
+        return False
+    db.delete(svc)
+    db.commit()
+    return True
+
+
+# ============================================================================
+# FluxCode 服务 CRUD
+# ============================================================================
+
+def create_fluxcode_service(
+    db: Session,
+    name: str,
+    api_url: str,
+    api_key: str,
+    enabled: bool = True,
+    priority: int = 0,
+    proxy_ids: str = '[]',
+    group_ids: str = '[]',
+    concurrency: int = 3,
+    account_priority: int = 50,
+    rate_multiplier: str = '1.0',
+    auto_pause_on_expired: bool = True,
+) -> FluxCodeService:
+    """创建 FluxCode 服务配置"""
+    svc = FluxCodeService(
+        name=name,
+        api_url=api_url,
+        api_key=api_key,
+        enabled=enabled,
+        priority=priority,
+        proxy_ids=proxy_ids,
+        group_ids=group_ids,
+        concurrency=concurrency,
+        account_priority=account_priority,
+        rate_multiplier=rate_multiplier,
+        auto_pause_on_expired=auto_pause_on_expired,
+    )
+    db.add(svc)
+    db.commit()
+    db.refresh(svc)
+    return svc
+
+
+def get_fluxcode_service_by_id(db: Session, service_id: int) -> Optional[FluxCodeService]:
+    """按 ID 获取 FluxCode 服务"""
+    return db.query(FluxCodeService).filter(FluxCodeService.id == service_id).first()
+
+
+def get_fluxcode_services(
+    db: Session,
+    enabled: Optional[bool] = None
+) -> List[FluxCodeService]:
+    """获取 FluxCode 服务列表"""
+    query = db.query(FluxCodeService)
+    if enabled is not None:
+        query = query.filter(FluxCodeService.enabled == enabled)
+    return query.order_by(asc(FluxCodeService.priority), asc(FluxCodeService.id)).all()
+
+
+def update_fluxcode_service(db: Session, service_id: int, **kwargs) -> Optional[FluxCodeService]:
+    """更新 FluxCode 服务配置"""
+    svc = get_fluxcode_service_by_id(db, service_id)
+    if not svc:
+        return None
+    for key, value in kwargs.items():
+        setattr(svc, key, value)
+    db.commit()
+    db.refresh(svc)
+    return svc
+
+
+def delete_fluxcode_service(db: Session, service_id: int) -> bool:
+    """删除 FluxCode 服务配置"""
+    svc = get_fluxcode_service_by_id(db, service_id)
     if not svc:
         return False
     db.delete(svc)

@@ -136,6 +136,7 @@
                                 <a href="#" class="dropdown-item" id="batch-upload-cpa-item">☁️ 上传到 CPA</a>
                                 <a href="#" class="dropdown-item" id="batch-upload-sub2api-item">🔗 上传到 Sub2API</a>
                                 <a href="#" class="dropdown-item" id="batch-upload-tm-item">🚀 上传到 Team Manager</a>
+                                <a href="#" class="dropdown-item" id="batch-upload-fluxcode-item">⚡ 上传到 FluxCode</a>
                             </div>
                         </div>
                         <button class="btn btn-danger" id="batch-delete-btn" disabled>
@@ -273,6 +274,26 @@
             <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
                 <button class="btn btn-secondary" id="sub2api-use-auto-btn">自动选择</button>
                 <button class="btn btn-secondary" id="cancel-sub2api-modal-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FluxCode 服务选择模态框 -->
+    <div class="modal" id="fluxcode-service-modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>⚡ 选择 FluxCode 服务</h3>
+                <button class="modal-close" id="close-fluxcode-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-muted); margin-bottom: 12px; font-size: 0.9rem;">选择要上传到的 FluxCode 服务，或自动选择第一个启用的服务。</p>
+                <div id="fluxcode-service-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;">
+                    <div style="text-align: center; color: var(--text-muted);">加载中...</div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
+                <button class="btn btn-secondary" id="fluxcode-use-auto-btn">自动选择</button>
+                <button class="btn btn-secondary" id="cancel-fluxcode-modal-btn">取消</button>
             </div>
         </div>
     </div>

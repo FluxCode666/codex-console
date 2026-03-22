@@ -158,6 +158,27 @@ class Sub2ApiService(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class FluxCodeService(Base):
+    """FluxCode 服务配置表"""
+    __tablename__ = 'fluxcode_services'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)           # 服务名称
+    api_url = Column(String(500), nullable=False)        # API URL (host)
+    api_key = Column(Text, nullable=False)               # x-api-key / Bearer token
+    # 默认上传配置（上传时可覆盖）
+    proxy_ids = Column(Text, default='[]')               # JSON 数组，代理 ID 列表（轮询分配）
+    group_ids = Column(Text, default='[]')               # JSON 数组，分组 ID 列表
+    concurrency = Column(Integer, default=3)             # 默认账号并发数
+    account_priority = Column(Integer, default=50)       # 默认账号优先级（区别于服务排序 priority）
+    rate_multiplier = Column(String(20), default='1.0')  # 速率倍率
+    auto_pause_on_expired = Column(Boolean, default=True)  # 过期自动暂停
+    enabled = Column(Boolean, default=True)
+    priority = Column(Integer, default=0)                # 服务排序优先级
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TeamManagerService(Base):
     """Team Manager 服务配置表"""
     __tablename__ = 'tm_services'

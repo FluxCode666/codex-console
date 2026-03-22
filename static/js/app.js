@@ -24,7 +24,8 @@ let availableServices = {
     moe_mail: { available: false, services: [] },
     temp_mail: { available: false, services: [] },
     duck_mail: { available: false, services: [] },
-    freemail: { available: false, services: [] }
+    freemail: { available: false, services: [] },
+    imap_mail: { available: false, services: [] }
 };
 
 // WebSocket 相关变量
@@ -94,6 +95,9 @@ const elements = {
     autoUploadTm: document.getElementById('auto-upload-tm'),
     tmServiceSelectGroup: document.getElementById('tm-service-select-group'),
     tmServiceSelect: document.getElementById('tm-service-select'),
+    autoUploadFluxcode: document.getElementById('auto-upload-fluxcode'),
+    fluxcodeServiceSelectGroup: document.getElementById('fluxcode-service-select-group'),
+    fluxcodeServiceSelect: document.getElementById('fluxcode-service-select'),
 };
 
 // 初始化
@@ -107,12 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initAutoUploadOptions();
 });
 
-// 初始化注册后自动操作选项（CPA / Sub2API / TM）
+// 初始化注册后自动操作选项（CPA / Sub2API / TM / FluxCode）
 async function initAutoUploadOptions() {
     await Promise.all([
         loadServiceSelect('/cpa-services?enabled=true', elements.cpaServiceSelect, elements.autoUploadCpa, elements.cpaServiceSelectGroup),
         loadServiceSelect('/sub2api-services?enabled=true', elements.sub2apiServiceSelect, elements.autoUploadSub2api, elements.sub2apiServiceSelectGroup),
         loadServiceSelect('/tm-services?enabled=true', elements.tmServiceSelect, elements.autoUploadTm, elements.tmServiceSelectGroup),
+        loadServiceSelect('/fluxcode-services?enabled=true', elements.fluxcodeServiceSelect, elements.autoUploadFluxcode, elements.fluxcodeServiceSelectGroup),
     ]);
 }
 
@@ -372,6 +377,23 @@ function updateEmailServiceOptions() {
 
         select.appendChild(optgroup);
     }
+
+    // IMAP 邮箱
+    if (availableServices.imap_mail && availableServices.imap_mail.available) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = `📬 IMAP 邮箱 (${availableServices.imap_mail.count} 个服务)`;
+
+        availableServices.imap_mail.services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = `imap_mail:${service.id}`;
+            option.textContent = service.name + (service.email ? ` (${service.email})` : '');
+            option.dataset.type = 'imap_mail';
+            option.dataset.serviceId = service.id;
+            optgroup.appendChild(option);
+        });
+
+        select.appendChild(optgroup);
+    }
 }
 
 // 处理邮箱服务切换
@@ -480,6 +502,8 @@ async function handleStartRegistration(e) {
         sub2api_service_ids: elements.autoUploadSub2api && elements.autoUploadSub2api.checked ? getSelectedServiceIds(elements.sub2apiServiceSelect) : [],
         auto_upload_tm: elements.autoUploadTm ? elements.autoUploadTm.checked : false,
         tm_service_ids: elements.autoUploadTm && elements.autoUploadTm.checked ? getSelectedServiceIds(elements.tmServiceSelect) : [],
+        auto_upload_fluxcode: elements.autoUploadFluxcode ? elements.autoUploadFluxcode.checked : false,
+        fluxcode_service_ids: elements.autoUploadFluxcode && elements.autoUploadFluxcode.checked ? getSelectedServiceIds(elements.fluxcodeServiceSelect) : [],
     };
 
     // 如果选择了数据库中的服务，传递 service_id
@@ -1049,7 +1073,8 @@ function resetButtons() {
     elements.cancelBtn.disabled = true;
     currentTask = null;
     currentBatch = null;
-    isBatchMode = false;
+    // 从 DOM 选择器同步批量模式状态，而非强制重置
+    isBatchMode = elements.regMode ? elements.regMode.value === 'batch' : false;
     // 重置完成标志
     taskCompleted = false;
     batchCompleted = false;
@@ -1190,6 +1215,8 @@ async function handleOutlookBatchRegistration() {
         sub2api_service_ids: elements.autoUploadSub2api && elements.autoUploadSub2api.checked ? getSelectedServiceIds(elements.sub2apiServiceSelect) : [],
         auto_upload_tm: elements.autoUploadTm ? elements.autoUploadTm.checked : false,
         tm_service_ids: elements.autoUploadTm && elements.autoUploadTm.checked ? getSelectedServiceIds(elements.tmServiceSelect) : [],
+        auto_upload_fluxcode: elements.autoUploadFluxcode ? elements.autoUploadFluxcode.checked : false,
+        fluxcode_service_ids: elements.autoUploadFluxcode && elements.autoUploadFluxcode.checked ? getSelectedServiceIds(elements.fluxcodeServiceSelect) : [],
     };
 
     addLog('info', `[系统] 正在启动 Outlook 批量注册 (${selectedIds.length} 个账户)...`);

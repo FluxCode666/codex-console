@@ -57,6 +57,15 @@ const elements = {
     sub2ApiServiceForm: document.getElementById('sub2api-service-form'),
     sub2ApiServiceModalTitle: document.getElementById('sub2api-service-modal-title'),
     testSub2ApiServiceBtn: document.getElementById('test-sub2api-service-btn'),
+    // FluxCode 服务管理
+    addFluxCodeServiceBtn: document.getElementById('add-fluxcode-service-btn'),
+    fluxCodeServicesTable: document.getElementById('fluxcode-services-table'),
+    fluxCodeServiceEditModal: document.getElementById('fluxcode-service-edit-modal'),
+    closeFluxCodeServiceModal: document.getElementById('close-fluxcode-service-modal'),
+    cancelFluxCodeServiceBtn: document.getElementById('cancel-fluxcode-service-btn'),
+    fluxCodeServiceForm: document.getElementById('fluxcode-service-form'),
+    fluxCodeServiceModalTitle: document.getElementById('fluxcode-service-modal-title'),
+    testFluxCodeServiceBtn: document.getElementById('test-fluxcode-service-btn'),
     // Team Manager 服务管理
     addTmServiceBtn: document.getElementById('add-tm-service-btn'),
     tmServicesTable: document.getElementById('tm-services-table'),
@@ -87,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCpaServices();
     loadSub2ApiServices();
     loadTmServices();
+    loadFluxCodeServices();
     initEventListeners();
 });
 
@@ -289,6 +299,28 @@ function initEventListeners() {
     }
     if (elements.testCpaServiceBtn) {
         elements.testCpaServiceBtn.addEventListener('click', handleTestCpaService);
+    }
+
+    // FluxCode 服务管理
+    if (elements.addFluxCodeServiceBtn) {
+        elements.addFluxCodeServiceBtn.addEventListener('click', () => openFluxCodeServiceModal());
+    }
+    if (elements.closeFluxCodeServiceModal) {
+        elements.closeFluxCodeServiceModal.addEventListener('click', closeFluxCodeServiceModal);
+    }
+    if (elements.cancelFluxCodeServiceBtn) {
+        elements.cancelFluxCodeServiceBtn.addEventListener('click', closeFluxCodeServiceModal);
+    }
+    if (elements.fluxCodeServiceEditModal) {
+        elements.fluxCodeServiceEditModal.addEventListener('click', (e) => {
+            if (e.target === elements.fluxCodeServiceEditModal) closeFluxCodeServiceModal();
+        });
+    }
+    if (elements.fluxCodeServiceForm) {
+        elements.fluxCodeServiceForm.addEventListener('submit', handleSaveFluxCodeService);
+    }
+    if (elements.testFluxCodeServiceBtn) {
+        elements.testFluxCodeServiceBtn.addEventListener('click', handleTestFluxCodeService);
     }
 
     // Sub2API 服务管理
@@ -1530,6 +1562,202 @@ async function handleTestSub2ApiService() {
     } finally {
         elements.testSub2ApiServiceBtn.disabled = false;
         elements.testSub2ApiServiceBtn.textContent = '🔌 测试连接';
+    }
+}
+
+// ============================================================================
+// FluxCode 服务管理
+// ============================================================================
+
+let _fluxcodeEditingId = null;
+
+async function loadFluxCodeServices() {
+    if (!elements.fluxCodeServicesTable) return;
+    try {
+        const services = await api.get('/fluxcode-services');
+        renderFluxCodeServicesTable(services);
+    } catch (e) {
+        elements.fluxCodeServicesTable.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger-color);">${e.message}</td></tr>`;
+    }
+}
+
+function renderFluxCodeServicesTable(services) {
+    if (!elements.fluxCodeServicesTable) return;
+    if (!services || services.length === 0) {
+        elements.fluxCodeServicesTable.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">暂无 FluxCode 服务，点击「添加服务」新增</td></tr>';
+        return;
+    }
+    elements.fluxCodeServicesTable.innerHTML = services.map(s => `
+        <tr>
+            <td>${escapeHtml(s.name)}</td>
+            <td style="font-size:0.85rem;color:var(--text-muted);">${escapeHtml(s.api_url)}</td>
+            <td style="text-align:center;" title="${s.enabled ? '已启用' : '已禁用'}">${s.enabled ? '✅' : '⭕'}</td>
+            <td style="text-align:center;">${s.priority}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn btn-secondary btn-sm" onclick="editFluxCodeService(${s.id})">编辑</button>
+                <button class="btn btn-secondary btn-sm" onclick="testFluxCodeServiceById(${s.id})">测试</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteFluxCodeService(${s.id}, '${escapeHtml(s.name)}')">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openFluxCodeServiceModal(svc = null) {
+    _fluxcodeEditingId = svc ? svc.id : null;
+    elements.fluxCodeServiceModalTitle.textContent = svc ? '编辑 FluxCode 服务' : '添加 FluxCode 服务';
+    elements.fluxCodeServiceForm.reset();
+    document.getElementById('fluxcode-service-id').value = svc ? svc.id : '';
+
+    if (svc) {
+        document.getElementById('fluxcode-service-name').value = svc.name || '';
+        document.getElementById('fluxcode-service-url').value = svc.api_url || '';
+        document.getElementById('fluxcode-service-priority').value = svc.priority ?? 0;
+        document.getElementById('fluxcode-service-enabled').checked = svc.enabled !== false;
+        document.getElementById('fluxcode-service-key').placeholder = svc.has_key ? '已配置，留空保持不变' : '请输入 API Key';
+        // 额外配置
+        document.getElementById('fluxcode-service-proxy-ids').value = (svc.proxy_ids || []).join(',');
+        document.getElementById('fluxcode-service-concurrency').value = svc.concurrency ?? 3;
+        document.getElementById('fluxcode-service-account-priority').value = svc.account_priority ?? 50;
+        document.getElementById('fluxcode-service-rate-multiplier').value = svc.rate_multiplier ?? 1;
+        document.getElementById('fluxcode-service-auto-pause').checked = svc.auto_pause_on_expired !== false;
+        document.getElementById('fluxcode-service-group-ids').value = (svc.group_ids || []).join(',');
+    } else {
+        document.getElementById('fluxcode-service-key').placeholder = '请输入 API Key';
+        document.getElementById('fluxcode-service-proxy-ids').value = '';
+        document.getElementById('fluxcode-service-concurrency').value = 3;
+        document.getElementById('fluxcode-service-account-priority').value = 50;
+        document.getElementById('fluxcode-service-rate-multiplier').value = 1;
+        document.getElementById('fluxcode-service-auto-pause').checked = true;
+        document.getElementById('fluxcode-service-group-ids').value = '';
+    }
+    elements.fluxCodeServiceEditModal.classList.add('active');
+}
+
+function closeFluxCodeServiceModal() {
+    elements.fluxCodeServiceEditModal.classList.remove('active');
+    elements.fluxCodeServiceForm.reset();
+    _fluxcodeEditingId = null;
+}
+
+async function editFluxCodeService(id) {
+    try {
+        const svc = await api.get(`/fluxcode-services/${id}`);
+        openFluxCodeServiceModal(svc);
+    } catch (e) {
+        toast.error('加载失败: ' + e.message);
+    }
+}
+
+function _parseGroupIds(str) {
+    if (!str || !str.trim()) return [];
+    return str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+}
+
+function _parseProxyIds(str) {
+    if (!str || !str.trim()) return [];
+    return str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+}
+
+async function handleSaveFluxCodeService(e) {
+    e.preventDefault();
+    const id = document.getElementById('fluxcode-service-id').value;
+    const data = {
+        name: document.getElementById('fluxcode-service-name').value.trim(),
+        api_url: document.getElementById('fluxcode-service-url').value.trim(),
+        api_key: document.getElementById('fluxcode-service-key').value.trim() || undefined,
+        priority: parseInt(document.getElementById('fluxcode-service-priority').value) || 0,
+        enabled: document.getElementById('fluxcode-service-enabled').checked,
+        proxy_ids: _parseProxyIds(document.getElementById('fluxcode-service-proxy-ids').value),
+        concurrency: parseInt(document.getElementById('fluxcode-service-concurrency').value) || 3,
+        account_priority: parseInt(document.getElementById('fluxcode-service-account-priority').value) || 50,
+        rate_multiplier: parseFloat(document.getElementById('fluxcode-service-rate-multiplier').value) || 1,
+        auto_pause_on_expired: document.getElementById('fluxcode-service-auto-pause').checked,
+        group_ids: _parseGroupIds(document.getElementById('fluxcode-service-group-ids').value),
+    };
+
+    if (!data.name || !data.api_url) {
+        toast.error('名称和 API URL 不能为空');
+        return;
+    }
+    if (!id && !data.api_key) {
+        toast.error('请填写 API Key');
+        return;
+    }
+    if (!data.api_key) delete data.api_key;
+
+    try {
+        if (id) {
+            await api.patch(`/fluxcode-services/${id}`, data);
+            toast.success('服务已更新');
+        } else {
+            await api.post('/fluxcode-services', data);
+            toast.success('服务已添加');
+        }
+        closeFluxCodeServiceModal();
+        loadFluxCodeServices();
+    } catch (e) {
+        toast.error('保存失败: ' + e.message);
+    }
+}
+
+async function deleteFluxCodeService(id, name) {
+    if (!confirm(`确认删除 FluxCode 服务「${name}」？`)) return;
+    try {
+        await api.delete(`/fluxcode-services/${id}`);
+        toast.success('服务已删除');
+        loadFluxCodeServices();
+    } catch (e) {
+        toast.error('删除失败: ' + e.message);
+    }
+}
+
+async function testFluxCodeServiceById(id) {
+    try {
+        const result = await api.post(`/fluxcode-services/${id}/test`);
+        if (result.success) {
+            toast.success(result.message);
+        } else {
+            toast.error(result.message);
+        }
+    } catch (e) {
+        toast.error('测试失败: ' + e.message);
+    }
+}
+
+async function handleTestFluxCodeService() {
+    const apiUrl = document.getElementById('fluxcode-service-url').value.trim();
+    const apiKey = document.getElementById('fluxcode-service-key').value.trim();
+    const id = document.getElementById('fluxcode-service-id').value;
+
+    if (!apiUrl) {
+        toast.error('请先填写 API URL');
+        return;
+    }
+    if (!id && !apiKey) {
+        toast.error('请先填写 API Key');
+        return;
+    }
+
+    elements.testFluxCodeServiceBtn.disabled = true;
+    elements.testFluxCodeServiceBtn.textContent = '测试中...';
+
+    try {
+        let result;
+        if (id && !apiKey) {
+            result = await api.post(`/fluxcode-services/${id}/test`);
+        } else {
+            result = await api.post('/fluxcode-services/test-connection', { api_url: apiUrl, api_key: apiKey });
+        }
+        if (result.success) {
+            toast.success(result.message);
+        } else {
+            toast.error(result.message);
+        }
+    } catch (e) {
+        toast.error('测试失败: ' + e.message);
+    } finally {
+        elements.testFluxCodeServiceBtn.disabled = false;
+        elements.testFluxCodeServiceBtn.textContent = '🔌 测试连接';
     }
 }
 

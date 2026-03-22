@@ -111,6 +111,7 @@ class DatabaseSessionManager:
             ("accounts", "subscription_at", "DATETIME"),
             ("accounts", "cookies", "TEXT"),
             ("proxies", "is_default", "BOOLEAN DEFAULT 0"),
+            ("fluxcode_services", "proxy_ids", "TEXT DEFAULT '[]'"),
         ]
 
         # 确保新表存在（create_tables 已处理，此处兜底）
@@ -141,6 +142,22 @@ class DatabaseSessionManager:
                         logger.info(f"成功添加列 {table_name}.{column_name}")
                 except Exception as e:
                     logger.warning(f"迁移列 {table_name}.{column_name} 时出错: {e}")
+
+            # fluxcode_services: 将旧 proxy_id 列数据迁移到新 proxy_ids 列
+            try:
+                result = conn.execute(text(
+                    "SELECT * FROM pragma_table_info('fluxcode_services') WHERE name='proxy_id'"
+                ))
+                if result.fetchone() is not None:
+                    # 旧列存在，把非零 proxy_id 值转为 JSON 数组写入 proxy_ids
+                    conn.execute(text(
+                        "UPDATE fluxcode_services SET proxy_ids = '[' || proxy_id || ']' "
+                        "WHERE proxy_id IS NOT NULL AND proxy_id != 0 AND (proxy_ids IS NULL OR proxy_ids = '[]')"
+                    ))
+                    conn.commit()
+                    logger.info("已将 fluxcode_services.proxy_id 数据迁移到 proxy_ids")
+            except Exception as e:
+                logger.warning(f"迁移 fluxcode_services proxy_id -> proxy_ids 时出错: {e}")
 
 
 # 全局数据库会话管理器实例

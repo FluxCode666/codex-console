@@ -19,6 +19,7 @@ from ...core.openai.token_refresh import validate_account_token as do_validate
 from ...core.upload.cpa_upload import generate_token_json, batch_upload_to_cpa, upload_to_cpa
 from ...core.upload.team_manager_upload import upload_to_team_manager, batch_upload_to_team_manager
 from ...core.upload.sub2api_upload import batch_upload_to_sub2api, upload_to_sub2api
+from ...core.upload.fluxcode_upload import batch_upload_to_fluxcode, upload_single_to_fluxcode
 
 from ...core.dynamic_proxy import get_proxy_url_for_task
 from ...database import crud
@@ -956,6 +957,120 @@ async def upload_account_to_tm(account_id: int, request: Optional[UploadTMReques
         if not account:
             raise HTTPException(status_code=404, detail="账号不存在")
         success, message = upload_to_team_manager(account, api_url, api_key)
+
+    return {"success": success, "message": message}
+
+
+# ============== FluxCode 上传 ==============
+
+class UploadFluxCodeRequest(BaseModel):
+    service_id: Optional[int] = None
+
+
+class BatchFluxCodeUploadRequest(BaseModel):
+    ids: List[int] = []
+    select_all: bool = False
+    status_filter: Optional[str] = None
+    email_service_filter: Optional[str] = None
+    search_filter: Optional[str] = None
+    service_id: Optional[int] = None  # 指定 FluxCode 服务 ID，不传则使用第一个启用的
+
+
+def _parse_int_list(raw) -> List[int]:
+    """解析 JSON 字符串或列表为整数列表"""
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw) if raw else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return []
+
+
+@router.post("/batch-upload-fluxcode")
+async def batch_upload_accounts_to_fluxcode(request: BatchFluxCodeUploadRequest):
+    """批量上传账号到 FluxCode（逐个创建，代理 ID 轮询分配）"""
+
+    with get_db() as db:
+        if request.service_id:
+            svc = crud.get_fluxcode_service_by_id(db, request.service_id)
+        else:
+            svcs = crud.get_fluxcode_services(db, enabled=True)
+            svc = svcs[0] if svcs else None
+
+        if not svc:
+            raise HTTPException(status_code=400, detail="未找到可用的 FluxCode 服务，请先在设置中配置")
+
+        api_url = svc.api_url
+        api_key = svc.api_key
+        proxy_ids = _parse_int_list(svc.proxy_ids)
+        group_ids = _parse_int_list(svc.group_ids)
+        svc_concurrency = svc.concurrency or 3
+        svc_account_priority = svc.account_priority or 50
+        svc_rate_multiplier = float(svc.rate_multiplier or 1.0)
+        svc_auto_pause = svc.auto_pause_on_expired if svc.auto_pause_on_expired is not None else True
+
+        ids = resolve_account_ids(
+            db, request.ids, request.select_all,
+            request.status_filter, request.email_service_filter, request.search_filter
+        )
+
+    results = batch_upload_to_fluxcode(
+        account_ids=ids,
+        api_url=api_url,
+        api_key=api_key,
+        proxy_ids=proxy_ids,
+        group_ids=group_ids,
+        concurrency=svc_concurrency,
+        account_priority=svc_account_priority,
+        rate_multiplier=svc_rate_multiplier,
+        auto_pause_on_expired=svc_auto_pause,
+    )
+    return results
+
+
+@router.post("/{account_id}/upload-fluxcode")
+async def upload_account_to_fluxcode(account_id: int, request: Optional[UploadFluxCodeRequest] = Body(default=None)):
+    """上传单个账号到 FluxCode"""
+
+    service_id = request.service_id if request else None
+
+    with get_db() as db:
+        if service_id:
+            svc = crud.get_fluxcode_service_by_id(db, service_id)
+        else:
+            svcs = crud.get_fluxcode_services(db, enabled=True)
+            svc = svcs[0] if svcs else None
+
+        if not svc:
+            raise HTTPException(status_code=400, detail="未找到可用的 FluxCode 服务，请先在设置中配置")
+
+        api_url = svc.api_url
+        api_key = svc.api_key
+        proxy_ids = _parse_int_list(svc.proxy_ids)
+        group_ids = _parse_int_list(svc.group_ids)
+
+        account = crud.get_account_by_id(db, account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="账号不存在")
+        if not account.access_token:
+            return {"success": False, "error": "账号缺少 Token，无法上传"}
+
+        # 单账号上传使用第一个代理 ID
+        current_proxy_id = proxy_ids[0] if proxy_ids else 0
+
+        success, message = upload_single_to_fluxcode(
+            account=account,
+            api_url=api_url,
+            api_key=api_key,
+            proxy_id=current_proxy_id,
+            group_ids=group_ids,
+            concurrency=svc.concurrency or 3,
+            account_priority=svc.account_priority or 50,
+            rate_multiplier=float(svc.rate_multiplier or 1.0),
+            auto_pause_on_expired=svc.auto_pause_on_expired if svc.auto_pause_on_expired is not None else True,
+        )
 
     return {"success": success, "message": message}
 

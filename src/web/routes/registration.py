@@ -77,6 +77,8 @@ class RegistrationTaskCreate(BaseModel):
     sub2api_service_ids: List[int] = []  # 指定 Sub2API 服务 ID 列表
     auto_upload_tm: bool = False
     tm_service_ids: List[int] = []  # 指定 TM 服务 ID 列表
+    auto_upload_fluxcode: bool = False
+    fluxcode_service_ids: List[int] = []  # 指定 FluxCode 服务 ID 列表
 
 
 class BatchRegistrationRequest(BaseModel):
@@ -96,6 +98,8 @@ class BatchRegistrationRequest(BaseModel):
     sub2api_service_ids: List[int] = []
     auto_upload_tm: bool = False
     tm_service_ids: List[int] = []
+    auto_upload_fluxcode: bool = False
+    fluxcode_service_ids: List[int] = []
 
 
 class RegistrationTaskResponse(BaseModel):
@@ -164,6 +168,8 @@ class OutlookBatchRegistrationRequest(BaseModel):
     sub2api_service_ids: List[int] = []
     auto_upload_tm: bool = False
     tm_service_ids: List[int] = []
+    auto_upload_fluxcode: bool = False
+    fluxcode_service_ids: List[int] = []
 
 
 class OutlookBatchRegistrationResponse(BaseModel):
@@ -221,7 +227,7 @@ def _normalize_email_service_config(
     return normalized
 
 
-def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: Optional[str], email_service_config: Optional[dict], email_service_id: Optional[int] = None, log_prefix: str = "", batch_id: str = "", auto_upload_cpa: bool = False, cpa_service_ids: List[int] = None, auto_upload_sub2api: bool = False, sub2api_service_ids: List[int] = None, auto_upload_tm: bool = False, tm_service_ids: List[int] = None):
+def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: Optional[str], email_service_config: Optional[dict], email_service_id: Optional[int] = None, log_prefix: str = "", batch_id: str = "", auto_upload_cpa: bool = False, cpa_service_ids: List[int] = None, auto_upload_sub2api: bool = False, sub2api_service_ids: List[int] = None, auto_upload_tm: bool = False, tm_service_ids: List[int] = None, auto_upload_fluxcode: bool = False, fluxcode_service_ids: List[int] = None):
     """
     在线程池中执行的同步注册任务
 
@@ -494,6 +500,46 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                     except Exception as tm_err:
                         log_callback(f"[TM] 上传异常: {tm_err}")
 
+                # 自动上传到 FluxCode（可多服务，代理 ID 轮询）
+                if auto_upload_fluxcode:
+                    try:
+                        from ...core.upload.fluxcode_upload import upload_single_to_fluxcode
+                        from ...database.models import Account as AccountModel
+                        import json as _json
+                        saved_account = db.query(AccountModel).filter_by(email=result.email).first()
+                        if saved_account and saved_account.access_token:
+                            _fc_ids = fluxcode_service_ids or []
+                            if not _fc_ids:
+                                _fc_ids = [s.id for s in crud.get_fluxcode_services(db, enabled=True)]
+                            if not _fc_ids:
+                                log_callback("[FluxCode] 无可用 FluxCode 服务，跳过上传")
+                            for _sid in _fc_ids:
+                                try:
+                                    _svc = crud.get_fluxcode_service_by_id(db, _sid)
+                                    if not _svc:
+                                        continue
+                                    # 解析服务配置
+                                    _proxy_ids = _json.loads(_svc.proxy_ids) if _svc.proxy_ids else []
+                                    _group_ids = _json.loads(_svc.group_ids) if _svc.group_ids else []
+                                    _proxy_id = _proxy_ids[0] if _proxy_ids else 0
+                                    log_callback(f"[FluxCode] 正在把账号发往服务站: {_svc.name}")
+                                    _ok, _msg = upload_single_to_fluxcode(
+                                        account=saved_account,
+                                        api_url=_svc.api_url,
+                                        api_key=_svc.api_key,
+                                        proxy_id=_proxy_id,
+                                        group_ids=_group_ids,
+                                        concurrency=_svc.concurrency or 3,
+                                        account_priority=_svc.account_priority or 50,
+                                        rate_multiplier=float(_svc.rate_multiplier or 1.0),
+                                        auto_pause_on_expired=_svc.auto_pause_on_expired if _svc.auto_pause_on_expired is not None else True,
+                                    )
+                                    log_callback(f"[FluxCode] {'成功' if _ok else '失败'}({_svc.name}): {_msg}")
+                                except Exception as _e:
+                                    log_callback(f"[FluxCode] 异常({_sid}): {_e}")
+                    except Exception as fc_err:
+                        log_callback(f"[FluxCode] 上传异常: {fc_err}")
+
                 # 更新任务状态
                 crud.update_registration_task(
                     db, task_uuid,
@@ -538,7 +584,7 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                 pass
 
 
-async def run_registration_task(task_uuid: str, email_service_type: str, proxy: Optional[str], email_service_config: Optional[dict], email_service_id: Optional[int] = None, log_prefix: str = "", batch_id: str = "", auto_upload_cpa: bool = False, cpa_service_ids: List[int] = None, auto_upload_sub2api: bool = False, sub2api_service_ids: List[int] = None, auto_upload_tm: bool = False, tm_service_ids: List[int] = None):
+async def run_registration_task(task_uuid: str, email_service_type: str, proxy: Optional[str], email_service_config: Optional[dict], email_service_id: Optional[int] = None, log_prefix: str = "", batch_id: str = "", auto_upload_cpa: bool = False, cpa_service_ids: List[int] = None, auto_upload_sub2api: bool = False, sub2api_service_ids: List[int] = None, auto_upload_tm: bool = False, tm_service_ids: List[int] = None, auto_upload_fluxcode: bool = False, fluxcode_service_ids: List[int] = None):
     """
     异步执行注册任务
 
@@ -571,6 +617,8 @@ async def run_registration_task(task_uuid: str, email_service_type: str, proxy: 
             sub2api_service_ids or [],
             auto_upload_tm,
             tm_service_ids or [],
+            auto_upload_fluxcode,
+            fluxcode_service_ids or [],
         )
     except Exception as e:
         logger.error(f"线程池执行异常: {task_uuid}, 错误: {e}")
@@ -623,6 +671,8 @@ async def run_batch_parallel(
     sub2api_service_ids: List[int] = None,
     auto_upload_tm: bool = False,
     tm_service_ids: List[int] = None,
+    auto_upload_fluxcode: bool = False,
+    fluxcode_service_ids: List[int] = None,
 ):
     """
     并行模式：所有任务同时提交，Semaphore 控制最大并发数
@@ -642,6 +692,7 @@ async def run_batch_parallel(
                 auto_upload_cpa=auto_upload_cpa, cpa_service_ids=cpa_service_ids or [],
                 auto_upload_sub2api=auto_upload_sub2api, sub2api_service_ids=sub2api_service_ids or [],
                 auto_upload_tm=auto_upload_tm, tm_service_ids=tm_service_ids or [],
+                auto_upload_fluxcode=auto_upload_fluxcode, fluxcode_service_ids=fluxcode_service_ids or [],
             )
         with get_db() as db:
             t = crud.get_registration_task(db, uuid)
@@ -689,6 +740,8 @@ async def run_batch_pipeline(
     sub2api_service_ids: List[int] = None,
     auto_upload_tm: bool = False,
     tm_service_ids: List[int] = None,
+    auto_upload_fluxcode: bool = False,
+    fluxcode_service_ids: List[int] = None,
 ):
     """
     流水线模式：每隔 interval 秒启动一个新任务，Semaphore 限制最大并发数
@@ -708,6 +761,7 @@ async def run_batch_pipeline(
                 auto_upload_cpa=auto_upload_cpa, cpa_service_ids=cpa_service_ids or [],
                 auto_upload_sub2api=auto_upload_sub2api, sub2api_service_ids=sub2api_service_ids or [],
                 auto_upload_tm=auto_upload_tm, tm_service_ids=tm_service_ids or [],
+                auto_upload_fluxcode=auto_upload_fluxcode, fluxcode_service_ids=fluxcode_service_ids or [],
             )
             with get_db() as db:
                 t = crud.get_registration_task(db, uuid)
@@ -779,6 +833,8 @@ async def run_batch_registration(
     sub2api_service_ids: List[int] = None,
     auto_upload_tm: bool = False,
     tm_service_ids: List[int] = None,
+    auto_upload_fluxcode: bool = False,
+    fluxcode_service_ids: List[int] = None,
 ):
     """根据 mode 分发到并行或流水线执行"""
     if mode == "parallel":
@@ -788,6 +844,7 @@ async def run_batch_registration(
             auto_upload_cpa=auto_upload_cpa, cpa_service_ids=cpa_service_ids,
             auto_upload_sub2api=auto_upload_sub2api, sub2api_service_ids=sub2api_service_ids,
             auto_upload_tm=auto_upload_tm, tm_service_ids=tm_service_ids,
+            auto_upload_fluxcode=auto_upload_fluxcode, fluxcode_service_ids=fluxcode_service_ids,
         )
     else:
         await run_batch_pipeline(
@@ -797,6 +854,7 @@ async def run_batch_registration(
             auto_upload_cpa=auto_upload_cpa, cpa_service_ids=cpa_service_ids,
             auto_upload_sub2api=auto_upload_sub2api, sub2api_service_ids=sub2api_service_ids,
             auto_upload_tm=auto_upload_tm, tm_service_ids=tm_service_ids,
+            auto_upload_fluxcode=auto_upload_fluxcode, fluxcode_service_ids=fluxcode_service_ids,
         )
 
 
@@ -849,6 +907,8 @@ async def start_registration(
         request.sub2api_service_ids,
         request.auto_upload_tm,
         request.tm_service_ids,
+        request.auto_upload_fluxcode,
+        request.fluxcode_service_ids,
     )
 
     return task_to_response(task)
@@ -926,6 +986,8 @@ async def start_batch_registration(
         request.sub2api_service_ids,
         request.auto_upload_tm,
         request.tm_service_ids,
+        request.auto_upload_fluxcode,
+        request.fluxcode_service_ids,
     )
 
     return BatchRegistrationResponse(
@@ -1330,6 +1392,8 @@ async def run_outlook_batch_registration(
     sub2api_service_ids: List[int] = None,
     auto_upload_tm: bool = False,
     tm_service_ids: List[int] = None,
+    auto_upload_fluxcode: bool = False,
+    fluxcode_service_ids: List[int] = None,
 ):
     """
     异步执行 Outlook 批量注册任务，复用通用并发逻辑
@@ -1373,6 +1437,8 @@ async def run_outlook_batch_registration(
         sub2api_service_ids=sub2api_service_ids,
         auto_upload_tm=auto_upload_tm,
         tm_service_ids=tm_service_ids,
+        auto_upload_fluxcode=auto_upload_fluxcode,
+        fluxcode_service_ids=fluxcode_service_ids,
     )
 
 
@@ -1477,6 +1543,8 @@ async def start_outlook_batch_registration(
         request.sub2api_service_ids,
         request.auto_upload_tm,
         request.tm_service_ids,
+        request.auto_upload_fluxcode,
+        request.fluxcode_service_ids,
     )
 
     return OutlookBatchRegistrationResponse(
