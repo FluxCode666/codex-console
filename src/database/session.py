@@ -112,6 +112,8 @@ class DatabaseSessionManager:
             ("accounts", "cookies", "TEXT"),
             ("proxies", "is_default", "BOOLEAN DEFAULT 0"),
             ("fluxcode_services", "proxy_ids", "TEXT DEFAULT '[]'"),
+            ("sub2api_services", "proxy_ids", "TEXT DEFAULT '[]'"),
+            ("sub2api_services", "group_ids", "TEXT DEFAULT '[]'"),
         ]
 
         # 确保新表存在（create_tables 已处理，此处兜底）

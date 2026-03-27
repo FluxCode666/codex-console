@@ -797,6 +797,8 @@ class Sub2ApiUploadRequest(BaseModel):
     service_id: Optional[int] = None
     concurrency: int = 3
     priority: int = 50
+    proxy_ids: Optional[List[int]] = None
+    group_ids: Optional[List[int]] = None
 
 
 class BatchSub2ApiUploadRequest(BaseModel):
@@ -809,33 +811,32 @@ class BatchSub2ApiUploadRequest(BaseModel):
     service_id: Optional[int] = None  # 指定 Sub2API 服务 ID，不传则使用第一个启用的
     concurrency: int = 3
     priority: int = 50
+    proxy_ids: Optional[List[int]] = None
+    group_ids: Optional[List[int]] = None
 
 
 @router.post("/batch-upload-sub2api")
 async def batch_upload_accounts_to_sub2api(request: BatchSub2ApiUploadRequest):
     """批量上传账号到 Sub2API"""
 
-    # 解析指定的 Sub2API 服务
-    api_url = None
-    api_key = None
-    if request.service_id:
-        with get_db() as db:
+    with get_db() as db:
+        # 解析指定的 Sub2API 服务
+        if request.service_id:
             svc = crud.get_sub2api_service_by_id(db, request.service_id)
             if not svc:
                 raise HTTPException(status_code=404, detail="指定的 Sub2API 服务不存在")
-            api_url = svc.api_url
-            api_key = svc.api_key
-    else:
-        with get_db() as db:
+        else:
             svcs = crud.get_sub2api_services(db, enabled=True)
-            if svcs:
-                api_url = svcs[0].api_url
-                api_key = svcs[0].api_key
+            svc = svcs[0] if svcs else None
 
-    if not api_url or not api_key:
-        raise HTTPException(status_code=400, detail="未找到可用的 Sub2API 服务，请先在设置中配置")
+        if not svc:
+            raise HTTPException(status_code=400, detail="未找到可用的 Sub2API 服务，请先在设置中配置")
 
-    with get_db() as db:
+        api_url = svc.api_url
+        api_key = svc.api_key
+        proxy_ids = request.proxy_ids if request.proxy_ids is not None else _parse_int_list(svc.proxy_ids)
+        group_ids = request.group_ids if request.group_ids is not None else _parse_int_list(svc.group_ids)
+
         ids = resolve_account_ids(
             db, request.ids, request.select_all,
             request.status_filter, request.email_service_filter, request.search_filter
@@ -845,6 +846,8 @@ async def batch_upload_accounts_to_sub2api(request: BatchSub2ApiUploadRequest):
         ids, api_url, api_key,
         concurrency=request.concurrency,
         priority=request.priority,
+        proxy_ids=proxy_ids,
+        group_ids=group_ids,
     )
     return results
 
@@ -856,27 +859,27 @@ async def upload_account_to_sub2api(account_id: int, request: Optional[Sub2ApiUp
     service_id = request.service_id if request else None
     concurrency = request.concurrency if request else 3
     priority = request.priority if request else 50
+    request_proxy_ids = request.proxy_ids if request else None
+    request_group_ids = request.group_ids if request else None
 
-    api_url = None
-    api_key = None
-    if service_id:
-        with get_db() as db:
+    with get_db() as db:
+        if service_id:
             svc = crud.get_sub2api_service_by_id(db, service_id)
             if not svc:
                 raise HTTPException(status_code=404, detail="指定的 Sub2API 服务不存在")
-            api_url = svc.api_url
-            api_key = svc.api_key
-    else:
-        with get_db() as db:
+        else:
             svcs = crud.get_sub2api_services(db, enabled=True)
-            if svcs:
-                api_url = svcs[0].api_url
-                api_key = svcs[0].api_key
+            svc = svcs[0] if svcs else None
 
-    if not api_url or not api_key:
-        raise HTTPException(status_code=400, detail="未找到可用的 Sub2API 服务，请先在设置中配置")
+        if not svc:
+            raise HTTPException(status_code=400, detail="未找到可用的 Sub2API 服务，请先在设置中配置")
 
-    with get_db() as db:
+        api_url = svc.api_url
+        api_key = svc.api_key
+        proxy_ids = request_proxy_ids if request_proxy_ids is not None else _parse_int_list(svc.proxy_ids)
+        group_ids = request_group_ids if request_group_ids is not None else _parse_int_list(svc.group_ids)
+        current_proxy_id = proxy_ids[0] if proxy_ids else None
+
         account = crud.get_account_by_id(db, account_id)
         if not account:
             raise HTTPException(status_code=404, detail="账号不存在")
@@ -885,7 +888,10 @@ async def upload_account_to_sub2api(account_id: int, request: Optional[Sub2ApiUp
 
         success, message = upload_to_sub2api(
             [account], api_url, api_key,
-            concurrency=concurrency, priority=priority
+            concurrency=concurrency,
+            priority=priority,
+            proxy_id=current_proxy_id,
+            group_ids=group_ids,
         )
         if success:
             return {"success": True, "message": message}

@@ -1454,6 +1454,12 @@ function openSub2ApiServiceModal(svc = null) {
         document.getElementById('sub2api-service-priority').value = svc.priority ?? 0;
         document.getElementById('sub2api-service-enabled').checked = svc.enabled !== false;
         document.getElementById('sub2api-service-key').placeholder = svc.has_key ? '已配置，留空保持不变' : '请输入 API Key';
+        document.getElementById('sub2api-service-proxy-ids').value = (svc.proxy_ids || []).join(',');
+        document.getElementById('sub2api-service-group-ids').value = (svc.group_ids || []).join(',');
+    } else {
+        document.getElementById('sub2api-service-key').placeholder = '请输入 API Key';
+        document.getElementById('sub2api-service-proxy-ids').value = '';
+        document.getElementById('sub2api-service-group-ids').value = '';
     }
     elements.sub2ApiServiceEditModal.classList.add('active');
 }
@@ -1487,12 +1493,18 @@ async function deleteSub2ApiService(id, name) {
 async function handleSaveSub2ApiService(e) {
     e.preventDefault();
     const id = document.getElementById('sub2api-service-id').value;
+    function _parseIds(str) {
+        if (!str || !str.trim()) return [];
+        return str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+    }
     const data = {
         name: document.getElementById('sub2api-service-name').value,
         api_url: document.getElementById('sub2api-service-url').value,
         api_key: document.getElementById('sub2api-service-key').value || undefined,
         priority: parseInt(document.getElementById('sub2api-service-priority').value) || 0,
         enabled: document.getElementById('sub2api-service-enabled').checked,
+        proxy_ids: _parseIds(document.getElementById('sub2api-service-proxy-ids').value),
+        group_ids: _parseIds(document.getElementById('sub2api-service-group-ids').value),
     };
     if (!id && !data.api_key) {
         toast.error('请填写 API Key');

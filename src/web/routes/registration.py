@@ -456,6 +456,7 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                     try:
                         from ...core.upload.sub2api_upload import upload_to_sub2api
                         from ...database.models import Account as AccountModel
+                        import json as _json
                         saved_account = db.query(AccountModel).filter_by(email=result.email).first()
                         if saved_account and saved_account.access_token:
                             _s2a_ids = sub2api_service_ids or []
@@ -468,8 +469,22 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                                     _svc = crud.get_sub2api_service_by_id(db, _sid)
                                     if not _svc:
                                         continue
+                                    # 从服务配置中读取 proxy_ids / group_ids
+                                    try:
+                                        _s2a_proxy_ids = _json.loads(_svc.proxy_ids) if _svc.proxy_ids else []
+                                    except (ValueError, TypeError):
+                                        _s2a_proxy_ids = []
+                                    try:
+                                        _s2a_group_ids = _json.loads(_svc.group_ids) if _svc.group_ids else []
+                                    except (ValueError, TypeError):
+                                        _s2a_group_ids = []
+                                    _s2a_proxy_id = _s2a_proxy_ids[0] if _s2a_proxy_ids else None
                                     log_callback(f"[Sub2API] 正在把账号发往服务站: {_svc.name}")
-                                    _ok, _msg = upload_to_sub2api([saved_account], _svc.api_url, _svc.api_key)
+                                    _ok, _msg = upload_to_sub2api(
+                                        [saved_account], _svc.api_url, _svc.api_key,
+                                        proxy_id=_s2a_proxy_id,
+                                        group_ids=_s2a_group_ids,
+                                    )
                                     log_callback(f"[Sub2API] {'成功' if _ok else '失败'}({_svc.name}): {_msg}")
                                 except Exception as _e:
                                     log_callback(f"[Sub2API] 异常({_sid}): {_e}")

@@ -152,6 +152,8 @@ class Sub2ApiService(Base):
     name = Column(String(100), nullable=False)  # 服务名称
     api_url = Column(String(500), nullable=False)  # API URL (host)
     api_key = Column(Text, nullable=False)  # x-api-key
+    proxy_ids = Column(Text, default='[]')               # JSON 数组，代理 ID 列表（轮询分配）
+    group_ids = Column(Text, default='[]')               # JSON 数组，分组 ID 列表
     enabled = Column(Boolean, default=True)
     priority = Column(Integer, default=0)  # 优先级
     created_at = Column(DateTime, default=datetime.utcnow)

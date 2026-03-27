@@ -432,7 +432,7 @@
 
             <!-- Sub2API 服务编辑模态框 -->
             <div class="modal" id="sub2api-service-edit-modal">
-                <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-content" style="max-width: 560px;">
                     <div class="modal-header">
                         <h3 id="sub2api-service-modal-title">添加 Sub2API 服务</h3>
                         <button class="modal-close" id="close-sub2api-service-modal">&times;</button>
@@ -464,6 +464,19 @@
                                         <input type="checkbox" id="sub2api-service-enabled" checked> 启用
                                     </label>
                                 </div>
+                            </div>
+                            <hr style="border:none;border-top:1px solid var(--border-color);margin:12px 0;">
+                            <p style="margin:0 0 8px;font-weight:600;font-size:0.9rem;">默认上传参数</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sub2api-service-proxy-ids">代理 ID（多个用逗号分隔，轮询分配）</label>
+                                    <input type="text" id="sub2api-service-proxy-ids" value="" placeholder="例: 1,2,3">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="sub2api-service-group-ids">分组 ID 列表</label>
+                                <input type="text" id="sub2api-service-group-ids" placeholder="用英文逗号分隔，例如: 1,2,3" value="">
+                                <p class="hint">留空表示不指定分组</p>
                             </div>
                             <div class="form-actions">
                                 <button type="submit" class="btn btn-primary">💾 保存</button>

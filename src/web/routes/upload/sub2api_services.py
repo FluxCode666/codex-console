@@ -2,6 +2,7 @@
 Sub2API 服务管理 API 路由
 """
 
+import json
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -21,6 +22,8 @@ class Sub2ApiServiceCreate(BaseModel):
     api_key: str
     enabled: bool = True
     priority: int = 0
+    proxy_ids: List[int] = []     # 代理 ID 列表（轮询分配）
+    group_ids: List[int] = []
 
 
 class Sub2ApiServiceUpdate(BaseModel):
@@ -29,6 +32,8 @@ class Sub2ApiServiceUpdate(BaseModel):
     api_key: Optional[str] = None
     enabled: Optional[bool] = None
     priority: Optional[int] = None
+    proxy_ids: Optional[List[int]] = None   # 代理 ID 列表（轮询分配）
+    group_ids: Optional[List[int]] = None
 
 
 class Sub2ApiServiceResponse(BaseModel):
@@ -38,6 +43,8 @@ class Sub2ApiServiceResponse(BaseModel):
     has_key: bool
     enabled: bool
     priority: int
+    proxy_ids: List[int]          # 代理 ID 列表（轮询分配）
+    group_ids: List[int]
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -53,8 +60,27 @@ class Sub2ApiTestRequest(BaseModel):
 class Sub2ApiUploadRequest(BaseModel):
     account_ids: List[int]
     service_id: Optional[int] = None
+    # 上传时可覆盖的配置（为 None 则用服务默认值）
+    proxy_ids: Optional[List[int]] = None   # 代理 ID 列表（轮询分配）
+    group_ids: Optional[List[int]] = None
     concurrency: int = 3
     priority: int = 50
+
+
+def _parse_group_ids(raw: str) -> List[int]:
+    """将数据库中的 group_ids JSON 字符串解析为整数列表"""
+    try:
+        return json.loads(raw) if raw else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _parse_proxy_ids(raw: str) -> List[int]:
+    """将数据库中的 proxy_ids JSON 字符串解析为整数列表"""
+    try:
+        return json.loads(raw) if raw else []
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 
 def _to_response(svc) -> Sub2ApiServiceResponse:
@@ -65,6 +91,8 @@ def _to_response(svc) -> Sub2ApiServiceResponse:
         has_key=bool(svc.api_key),
         enabled=svc.enabled,
         priority=svc.priority,
+        proxy_ids=_parse_proxy_ids(svc.proxy_ids),
+        group_ids=_parse_group_ids(svc.group_ids),
         created_at=svc.created_at.isoformat() if svc.created_at else None,
         updated_at=svc.updated_at.isoformat() if svc.updated_at else None,
     )
@@ -91,6 +119,8 @@ async def create_sub2api_service(request: Sub2ApiServiceCreate):
             api_key=request.api_key,
             enabled=request.enabled,
             priority=request.priority,
+            proxy_ids=json.dumps(request.proxy_ids),
+            group_ids=json.dumps(request.group_ids),
         )
         return _to_response(svc)
 
@@ -119,6 +149,8 @@ async def get_sub2api_service_full(service_id: int):
             "api_key": svc.api_key,
             "enabled": svc.enabled,
             "priority": svc.priority,
+            "proxy_ids": _parse_proxy_ids(svc.proxy_ids),
+            "group_ids": _parse_group_ids(svc.group_ids),
         }
 
 
@@ -143,6 +175,10 @@ async def update_sub2api_service(service_id: int, request: Sub2ApiServiceUpdate)
         if request.priority is not None:
             update_data["priority"] = request.priority
 
+        if request.proxy_ids is not None:
+            update_data["proxy_ids"] = json.dumps(request.proxy_ids)
+        if request.group_ids is not None:
+            update_data["group_ids"] = json.dumps(request.group_ids)
         svc = crud.update_sub2api_service(db, service_id, **update_data)
         return _to_response(svc)
 
@@ -196,6 +232,8 @@ async def upload_accounts_to_sub2api(request: Sub2ApiUploadRequest):
 
         api_url = svc.api_url
         api_key = svc.api_key
+        proxy_ids = request.proxy_ids if request.proxy_ids is not None else _parse_proxy_ids(svc.proxy_ids)
+        group_ids = request.group_ids if request.group_ids is not None else _parse_group_ids(svc.group_ids)
 
     results = batch_upload_to_sub2api(
         request.account_ids,
@@ -203,5 +241,7 @@ async def upload_accounts_to_sub2api(request: Sub2ApiUploadRequest):
         api_key,
         concurrency=request.concurrency,
         priority=request.priority,
+        proxy_ids=proxy_ids,
+        group_ids=group_ids,
     )
     return results
